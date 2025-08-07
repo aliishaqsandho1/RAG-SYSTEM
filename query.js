@@ -1,9 +1,15 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
-import readlineSync from 'readline-sync';
+import express from 'express';
+import bodyParser from 'body-parser';
 import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { GoogleGenAI } from "@google/genai";
+// sufyanvirk381@gmail.com
+// Initialize Express app
+const app = express();
+app.use(bodyParser.json());
+const PORT = process.env.PORT || 3000;
 
 // Initialize Google GenAI with API key
 console.log("Initializing GoogleGenAI...");
@@ -101,7 +107,7 @@ async function chatting(question) {
       model: "gemini-2.0-flash",
       contents: History,
       config: {
-        systemInstruction: `You are a Pakistan History Expert.
+        systemInstruction: `You are a Pakistan History Expert. You only have to speek in proper roman urdu .
         You will be given a context of relevant information and a user question.
         Your task is to answer the user's question based ONLY on the provided context.
         If the answer is not in the context, you must say "I could not find the answer in the provided document."
@@ -122,35 +128,32 @@ async function chatting(question) {
     console.log(response.text);
     console.log("=====================\n");
 
+    return response.text;
   } catch (error) {
     console.error("Error in chatting function:", error.message);
-    console.log("Attempting to continue with next question...");
+    throw new Error(`Chat processing failed: ${error.message}`);
   }
 }
 
-async function main() {
-  console.log("Starting main application loop...");
-  while (true) {
-    try {
-      const userProblem = readlineSync.question("Ask me anything--> ");
-      console.log(`User input received: "${userProblem}"`);
-      
-      if (userProblem.toLowerCase() === 'exit') {
-        console.log("User requested exit. Terminating application...");
-        break;
-      }
+// API Endpoint to handle questions
+app.post('/api/ask', async (req, res) => {
+  const { question } = req.body;
 
-      await chatting(userProblem);
-    } catch (error) {
-      console.error("Error in main loop:", error.message);
-      console.log("Continuing to next iteration...");
-    }
+  if (!question || typeof question !== 'string') {
+    return res.status(400).json({ error: 'Invalid or missing question in request body' });
   }
-  console.log("Application terminated.");
-}
 
-console.log("Starting application...");
-main().catch(error => {
-  console.error("Fatal error in application:", error.message);
-  process.exit(1);
+  try {
+    console.log(`Received API request with question: "${question}"`);
+    const response = await chatting(question);
+    res.status(200).json({ response });
+  } catch (error) {
+    console.error("Error processing API request:", error.message);
+    res.status(500).json({ error: `Internal server error: ${error.message}` });
+  }
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
